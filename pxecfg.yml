@@ -28,6 +28,12 @@
           - libsemanage-python
           - policycoreutils-python
 
+    - name: Enable ftp selinux
+      seboolean:
+        name: allow_ftpd_full_access
+        state: yes
+        persistent: yes
+
     - name: Configure DHCP
       copy:
         src: dhcpd.conf
