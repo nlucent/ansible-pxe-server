@@ -1,0 +1,197 @@
+---
+
+- hosts: new
+  remote_user: root
+  vars:
+    MGMTIP: "{{ MGMTIP }}"
+    IP: "{{ IP }}"
+    HOSTNAME: "{{ HOSTNAME }}"
+    GWIP: "{{ GWIP }}"
+    DNS: "{{ DNS }}"
+
+  tasks:
+
+    - name: Install services
+      yum:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - rsync
+          - tftp
+          - tftp-server
+          - syslinux
+          - vsftpd
+          - xinetd
+          - dhcp
+          - NetworkManager-glib
+          - nm-connection-editor
+          - libsemanage-python
+          - policycoreutils-python
+
+    - name: Configure DHCP
+      copy:
+        src: dhcpd.conf
+        dest: /etc/dhcp/dhcpd.conf
+
+    - name: Configure TFTP
+      lineinfile:
+        path: /etc/xinetd.d/tftp
+        regexp: disable
+        line: disable = no
+
+    - name: Copy syslinux files to /var/lib/tftpboot
+      copy:
+        src: "/usr/share/syslinux/{{ item }}"
+        dest: /var/lib/tftpboot
+        remote_src: yes
+      with_items:
+        - pxelinux.0
+        - menu.c32
+        - memdisk
+        - mboot.c32
+        - chain.c32
+
+    - name: Create pxelinux.cfg directory
+      file:
+        path: /var/lib/tftpboot/pxelinux.cfg
+        state: directory
+        mode: '0755'
+
+    - name: Create centos boot directory
+      file:
+        path: /var/lib/tftpboot/centos7
+        state: directory
+        mode: '0755'
+
+    - name: Download centos7 iso
+      get_url:
+        url: http://centos.den.host-engine.com/7.7.1908/isos/x86_64/CentOS-7-x86_64-Everything-1908.iso
+        dest: /centos7.iso
+
+    - name: Create centos repo directory
+      file:
+        path: /var/ftp/pub/centos7
+        state: directory
+        mode: '0755'
+
+    - name: Mount iso
+      mount:
+        path: /mnt
+        src: /centos7.iso
+        fstype: iso9660
+        opts: ro
+        state: mounted
+
+    - name: Copy iso files to ftp dir
+      synchronize:
+        src: /mnt/
+        dest: /var/ftp/pub/centos7
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Copy boot files
+      copy:
+        src: "/mnt/images/pxeboot/{{ item }}"
+        dest: /var/lib/tftpboot/centos7
+        remote_src: yes
+      with_items:
+        - vmlinuz
+        - initrd.img
+
+    - name: Unmount iso
+      mount:
+        path: /mnt
+        state: absent
+
+    - name: Delete iso
+      file:
+        path: /centos7.iso
+        state: absent
+
+    - name: Copy pxe boot menu
+      copy:
+        src: default
+        dest: /var/lib/tftpboot/pxelinux.cfg/default
+
+    - name: Copy kickstart file
+      copy:
+        src: centos7.ks
+        dest: /var/ftp/pub/centos7.ks
+
+    - name: Enable services
+      service:
+        name: "{{ item }}"
+        #state: started
+        enabled: yes
+      with_items:
+       - xinetd
+       - dhcpd
+       - vsftpd
+         
+    - name: Configure management IP
+      nmcli:
+        conn_name: eth1
+        ifname: eth1
+        type: ethernet
+        #ip4: 172.168.1.2/24
+        ip4: "{{ MGMTIP }}/24"
+        #gw4: 192.0.2.1
+        state: present
+
+    - name: Configure prod IP
+      nmcli:
+        conn_name: eth0
+        ifname: eth0
+        type: ethernet
+        ip4: "{{ IP }}/24"
+        gw4: "{{ GWIP }}"
+        dns4: "{{ DNS }}"
+        state: present
+
+    - name: Set mgmt IP to static
+      lineinfile:
+        path: /etc/sysconfig/network-scripts/ifcfg-eth1
+        regexp: ^BOOTPROTO=dhcp
+        line: BOOTPROTO=static
+     
+    - name: Set prod IP to static
+      lineinfile:
+        path: /etc/sysconfig/network-scripts/ifcfg-eth0
+        regexp: ^BOOTPROTO=dhcp
+        line: BOOTPROTO=static
+     
+    - name: Set Hostname
+      lineinfile:
+        path: /etc/hostname
+        regexp: ^localhost
+        line: "{{ HOSTNAME }}"
+
+    - name: Enable firewalld services
+      firewalld:
+        service: "{{ item }}"
+        permanent: yes
+        state: enabled
+      with_items:
+        - ftp
+        - dhcp
+
+    - name: Enable firewalld ports
+      firewalld:
+        port: "{{ item }}"
+        permanent: yes
+        state: enabled
+      with_items:
+        - 69/tcp
+        - 69/udp
+        - 4011/udp
+
+    - name: Start services
+      service:
+        name: "{{ item }}"
+        state: started
+      with_items:
+       - xinetd
+       - dhcpd
+       - vsftpd
+         
+    - name: Reboot server (Will Fail)
+      command: reboot

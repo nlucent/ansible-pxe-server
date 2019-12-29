@@ -1,0 +1,28 @@
+default menu.c32
+prompt 0
+timeout 30
+MENU TITLE NickNet PXE SuperBooter
+LABEL ^1) CentOS7-LVM
+	MENU LABEL CentOS 7 - LVM
+	KERNEL /centos7/vmlinuz
+	APPEND initrd=/centos7/initrd.img inst.repo=ftp://172.168.1.2/pub/centos7 ks=ftp://172.168.1.2/pub/centos7.ks
+	ipappend 2
+
+LABEL ^2) CentOS7-Thin
+	MENU LABEL CentOS 7 - ThinP
+	KERNEL /centos7/vmlinuz
+	APPEND initrd=/centos7/initrd.img inst.repo=ftp://172.168.1.2/pub/centos7 ks=ftp://172.168.1.2/pub/centos7-ovirt.ks
+	ipappend 2
+
+
+#LABEL ^2) Ovirt-NG
+#	MENU LABEL Ovirt NG
+#	KERNEL /ovirt/vmlinuz
+#	APPEND initrd=/ovirt/initrd.img inst.ks=ftp://172.168.1.2/pub/ovirt-ng.ks inst.stage2=ftp://172.168.1.2/pub/ovirt-ng/images/ verbose
+#
+#LABEL ^3) Ovirt-NG
+#	MENU LABEL Ovirt NG
+#	KERNEL /ovirt/vmlinuz
+#	APPEND initrd=/ovirt/initrd.img inst.repo=ftp://172.168.1.2/pub/ovirt-ng ks=ftp://172.168.1.2/pub/ovirt-ng.ks
+
+
